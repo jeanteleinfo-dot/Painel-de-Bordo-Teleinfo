@@ -125,6 +125,15 @@ const getStatusChartColor = (status: string) => {
     return statusColors['DEFAULT'].chart;
 };
 
+const getBuChartColor = (bu: string): string => {
+    const normalized = bu.trim().toUpperCase();
+    if (normalized.includes('INFRAESTRUTURA')) return '#f97316';
+    if (normalized.includes('SEGURANÇA')) return '#10b981';
+    if (normalized.includes('TI')) return '#0b5ed7';
+    if (normalized.includes('AUTOMAÇÃO')) return '#6b7280';
+    return '#8b949e';
+};
+
 // Sub-components
 const SummaryCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode }> = ({ title, value, icon }) => (
     <div className="bg-dark-card border border-dark-border rounded-lg p-5 flex items-center gap-4 transition-all hover:border-teleinfo-blue/50">
@@ -275,7 +284,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ projects, onDataLoaded, f
                 notStarted,
             },
             statusChartData: Object.entries(statusCounts).map(([name, value]) => ({ name, Projetos: value, color: getStatusChartColor(name) })),
-            buChartData: Object.entries(buCounts).map(([name, value]) => ({ name, Projetos: value, color: '#f97316' })),
+            buChartData: Object.entries(buCounts).map(([name, value]) => ({ name, Projetos: value, color: getBuChartColor(name) })),
             uniqueFilters: {
                 statuses: Array.from(statuses).sort(),
                 bus: Array.from(bus).sort(),
