@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Project, KeyFact, NextStep, DetailedProject } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
@@ -137,9 +138,17 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
             <div id="presentation-content">
                 {/* Cover Slide */}
                 <Slide className="text-center flex flex-col items-center justify-center h-[500px]">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-24 h-24 text-teleinfo-blue">
-                       <path d="M12 2.25a.75.75 0 01.75.75v11.5a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75z" />
-                       <path fillRule="evenodd" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0-1.5a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" clipRule="evenodd" />
+                    <svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg" aria-label="Teleinfo AI logo" role="img" className="w-32 h-24">
+                        <defs>
+                            <mask id="teleinfo-logo-mask-presentation">
+                                <rect width="100" height="80" fill="white" />
+                                <circle cx="60" cy="40" r="15" fill="black" />
+                                <rect x="80" y="25" width="20" height="30" fill="black" />
+                            </mask>
+                        </defs>
+                        <rect x="0" y="32.5" width="70" height="15" fill="#10B981"/>
+                        <circle cx="60" cy="40" r="30" fill="#0B5ED7" mask="url(#teleinfo-logo-mask-presentation)"/>
+                        <rect x="60" y="32.5" width="8" height="15" fill="#F97316"/>
                     </svg>
                     <h1 className="text-5xl font-bold text-teleinfo-blue mt-4">Status Report</h1>
                     <p className="text-xl text-gray-500 mt-2">Apresentação em {new Date().toLocaleDateString('pt-BR')}</p>

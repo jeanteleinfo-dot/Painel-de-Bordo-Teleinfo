@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, GanttChartSquare, Presentation } from 'lucide-react';
@@ -40,11 +41,18 @@ const App: React.FC = () => {
                     <nav className="max-w-7xl mx-auto px-4">
                         <div className="flex items-center justify-between h-16">
                            <div className="flex items-center gap-2">
-                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-teleinfo-blue">
-                               <path d="M12 2.25a.75.75 0 01.75.75v11.5a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75z" />
-                               <path fillRule="evenodd" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0-1.5a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" clipRule="evenodd" />
+                             <svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg" aria-label="Teleinfo AI logo" role="img" className="w-10 h-8">
+                                 <defs>
+                                     <mask id="teleinfo-logo-mask-header">
+                                         <rect width="100" height="80" fill="white" />
+                                         <circle cx="60" cy="40" r="15" fill="black" />
+                                         <rect x="80" y="25" width="20" height="30" fill="black" />
+                                     </mask>
+                                 </defs>
+                                 <rect x="0" y="32.5" width="70" height="15" fill="#10B981"/>
+                                 <circle cx="60" cy="40" r="30" fill="#0B5ED7" mask="url(#teleinfo-logo-mask-header)"/>
+                                 <rect x="60" y="32.5" width="8" height="15" fill="#F97316"/>
                              </svg>
-                             <span className="text-xl font-bold text-white">Teleinfo AI</span>
                            </div>
                            <div className="flex items-center space-x-2">
                                 <NavButton to="/" icon={<LayoutDashboard size={18}/>}>Painel</NavButton>

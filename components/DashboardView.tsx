@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Project } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { UploadCloud, FileText, Bot, BrainCircuit, X, AlertTriangle } from 'lucide-react';
-import { generateDashboardSummary, generateProjectRiskAnalysis } from '../services/geminiService';
+import { generateProjectRiskAnalysis } from '../services/geminiService';
 
 // Helper Functions
 const normalizePercent = (value: any): number | null => {
@@ -210,8 +210,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ projects, onDataLoaded, f
     const [statusFilter, setStatusFilter] = useState('');
     const [buFilter, setBuFilter] = useState('');
     const [clientFilter, setClientFilter] = useState('');
-    const [aiSummary, setAiSummary] = useState('');
-    const [isLoadingSummary, setIsLoadingSummary] = useState(false);
     const [selectedProjectForRisk, setSelectedProjectForRisk] = useState<Project | null>(null);
 
 
@@ -286,21 +284,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ projects, onDataLoaded, f
         };
     }, [filteredProjects, projects]);
     
-    const handleGenerateSummary = async () => {
-        setIsLoadingSummary(true);
-        const buDistribution = buChartData.map(d => `${d.name}: ${d.Projetos}`).join(', ');
-        const generatedSummary = await generateDashboardSummary({
-            total: summary.total,
-            finished: summary.finished,
-            inProgress: summary.inProgress,
-            paralyzed: summary.paralyzed,
-            notStarted: summary.notStarted,
-            buDistribution
-        });
-        setAiSummary(generatedSummary);
-        setIsLoadingSummary(false);
-    };
-
     if (projects.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
@@ -366,24 +349,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ projects, onDataLoaded, f
                 <SummaryCard title="Em Andamento" value={summary.inProgress} icon={<FileText size={20} className="text-blue-400"/>} />
                 <SummaryCard title="Paralisados" value={summary.paralyzed} icon={<FileText size={20} className="text-red-400"/>} />
                 <SummaryCard title="Não Iniciados" value={summary.notStarted} icon={<FileText size={20} className="text-yellow-400"/>} />
-            </div>
-
-             {/* AI Summary Section */}
-            <div className="bg-dark-card border border-dark-border rounded-lg p-5">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Bot size={20} className="text-teleinfo-blue"/> Resumo Executivo IA
-                    </h3>
-                    <button onClick={handleGenerateSummary} disabled={isLoadingSummary} className="bg-teleinfo-blue hover:bg-teleinfo-blue/90 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isLoadingSummary ? <BrainCircuit size={16} className="animate-spin"/> : <BrainCircuit size={16} />}
-                        <span>{isLoadingSummary ? 'Gerando...' : 'Gerar Resumo'}</span>
-                    </button>
-                </div>
-                {aiSummary ? (
-                    <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: aiSummary.replace(/\n/g, '<br />') }} />
-                ) : (
-                    <p className="text-dark-text-secondary">Clique em "Gerar Resumo" para obter uma visão geral do portfólio de projetos com tecnologia de IA.</p>
-                )}
             </div>
 
             {/* Charts */}
