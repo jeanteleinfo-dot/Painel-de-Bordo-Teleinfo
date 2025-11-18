@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Project, KeyFact, NextStep, DetailedProject } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Trash2, Download, Tv, ArrowLeft, ArrowRight, X } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 
@@ -61,7 +62,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
 };
 
 const Slide: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-    <div className={`bg-white text-gray-800 p-10 rounded-lg shadow-2xl print-slide aspect-[16/9] w-full ${className || ''}`}>{children}</div>
+    <div className={`bg-white text-gray-800 p-10 rounded-lg shadow-2xl print-slide aspect-[16/9] w-full flex flex-col ${className || ''}`}>{children}</div>
 );
 
 interface PresentationViewProps {
@@ -180,14 +181,19 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
         // Key Facts Slide
         <Slide key="key-facts">
             <h2 className="text-3xl font-bold text-teleinfo-blue mb-6">Fatos Relevantes do Período</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+            <div className={`grid grid-cols-1 ${!isTvMode ? 'md:grid-cols-2' : ''} gap-6 flex-grow items-center`}>
+                <div className={isTvMode ? 'max-w-3xl mx-auto w-full' : ''}>
                     {keyFacts.length > 0 ? (
                         <ul className="space-y-4">
                             {keyFacts.map(fact => (
                                 <li key={fact.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                                     {fact.logoUrl && <img src={fact.logoUrl} alt="logo" className="w-10 h-10 object-contain"/>}
                                     <span className="flex-grow">{fact.text}</span>
+                                    {!isTvMode && (
+                                        <button onClick={() => removeKeyFact(fact.id)} className="text-red-500 hover:text-red-400 p-1 rounded-full bg-red-500/10">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -195,14 +201,16 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
                         <p className="text-gray-500">Nenhum fato relevante adicionado.</p>
                     )}
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg self-start">
-                    <h3 className="font-semibold mb-2">Adicionar Fato Relevante</h3>
-                    <input type="text" value={newFactText} onChange={e => setNewFactText(e.target.value)} placeholder="Descrição do fato" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
-                    <input type="text" value={newFactLogo} onChange={e => setNewFactLogo(e.target.value)} placeholder="URL do logo (opcional)" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
-                    <button onClick={addKeyFact} className="bg-teleinfo-blue text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2 transition-colors w-full justify-center">
-                        <Plus size={16}/> Adicionar
-                    </button>
-                </div>
+                {!isTvMode && (
+                    <div className="bg-gray-100 p-4 rounded-lg self-start">
+                        <h3 className="font-semibold mb-2">Adicionar Fato Relevante</h3>
+                        <input type="text" value={newFactText} onChange={e => setNewFactText(e.target.value)} placeholder="Descrição do fato" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
+                        <input type="text" value={newFactLogo} onChange={e => setNewFactLogo(e.target.value)} placeholder="URL do logo (opcional)" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
+                        <button onClick={addKeyFact} className="bg-teleinfo-blue text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2 transition-colors w-full justify-center">
+                            <Plus size={16}/> Adicionar
+                        </button>
+                    </div>
+                )}
             </div>
         </Slide>,
         // Portfolio Summary Slide
@@ -252,33 +260,124 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
             </div>
         </Slide>,
         // Detailed Projects Slides
-        ...detailedProjects.map(proj => (
-            <Slide key={proj.id}>
-                <h2 className="text-3xl font-bold text-teleinfo-blue mb-4">Projeto Detalhado: {proj.name}</h2>
-                <div className="flex justify-between items-center text-gray-600 mb-6">
-                    <span>Início: {proj.start || 'N/A'}</span>
-                    <span>Término: {proj.end || 'N/A'}</span>
-                </div>
-                <ul className="space-y-2">
-                   {proj.steps.map((step, i) => (
-                       <li key={i}>
-                           <div className="flex justify-between items-center mb-1">
-                               <span>{step.name}</span>
-                               <span className="font-semibold">{step.perc}%</span>
-                           </div>
-                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                               <div className="bg-teleinfo-blue h-2.5 rounded-full" style={{ width: `${step.perc}%` }}></div>
-                           </div>
-                       </li>
-                   ))}
-                </ul>
-            </Slide>
-        )),
+        ...detailedProjects.map(proj => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const startDate = proj.start ? new Date(proj.start + 'T00:00:00') : null;
+            const endDate = proj.end ? new Date(proj.end + 'T00:00:00') : null;
+
+            const overallProgress = proj.steps.length > 0 
+                ? proj.steps.reduce((acc, s) => acc + s.perc, 0) / proj.steps.length 
+                : 0;
+
+            let timelineInfo = { progress: 0, text: "Datas não definidas" };
+
+            if (startDate && endDate && startDate <= endDate) {
+                const totalDuration = endDate.getTime() - startDate.getTime();
+                const elapsedDuration = today.getTime() - startDate.getTime();
+                
+                const progress = totalDuration > 0 ? Math.max(0, Math.min(100, (elapsedDuration / totalDuration) * 100)) : (today >= endDate ? 100 : 0);
+
+                const oneDay = 1000 * 60 * 60 * 24;
+                const remainingDays = Math.ceil((endDate.getTime() - today.getTime()) / oneDay);
+                
+                let text = "";
+                if (today.getTime() > endDate.getTime()) {
+                    const daysPast = Math.abs(remainingDays);
+                    text = daysPast === 0 ? "Finaliza hoje" : `Finalizado há ${daysPast} dia${daysPast > 1 ? 's' : ''}`;
+                } else if (today.getTime() < startDate.getTime()) {
+                    const daysToStart = Math.ceil((startDate.getTime() - today.getTime()) / oneDay);
+                    text = `Inicia em ${daysToStart} dia${daysToStart > 1 ? 's' : ''}`;
+                } else {
+                    text = remainingDays === 0 ? "Finaliza hoje" : `Faltam ${remainingDays} dia${remainingDays > 1 ? 's' : ''}`;
+                }
+
+                timelineInfo = { progress, text };
+            }
+
+            const buLabels: { [key in keyof typeof proj.soldHours]: string } = { infra: 'Infra', sse: 'Segurança', ti: 'TI', aut: 'Automação' };
+            const hoursComparisonData = (Object.keys(proj.soldHours) as Array<keyof typeof proj.soldHours>).map(bu => ({
+                name: buLabels[bu],
+                'Vendidas': proj.soldHours[bu],
+                'Utilizadas': proj.usedHours[bu],
+            }));
+
+            return (
+                <Slide key={proj.id}>
+                    <h2 className="text-3xl font-bold text-teleinfo-blue mb-2">Projeto Detalhado: {proj.name}</h2>
+                    <div className="flex justify-between items-start text-gray-600 text-sm mb-4">
+                        <div className="flex flex-col">
+                            <span>Início: {proj.start || 'N/A'}</span>
+                            <span className="font-bold text-teleinfo-blue mt-1">Progresso Total: {overallProgress.toFixed(1)}%</span>
+                        </div>
+                        <span>Término: {proj.end || 'N/A'}</span>
+                    </div>
+
+                    <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-center text-gray-800">Linha do Tempo</h3>
+                        <p className="text-2xl font-bold text-teleinfo-orange text-center mb-2">{timelineInfo.text}</p>
+                        <div className="w-full bg-gray-200 rounded-full h-4">
+                            <div className="bg-teleinfo-blue h-4 rounded-full" style={{ width: `${timelineInfo.progress}%` }}></div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-8 flex-grow">
+                        <div>
+                            <h3 className="font-semibold text-lg mb-2">Progresso das Etapas</h3>
+                            <ul className="space-y-3">
+                               {proj.steps.map((step, i) => (
+                                   <li key={i}>
+                                       <div className="flex justify-between items-center mb-1 text-sm">
+                                           <span>{step.name}</span>
+                                           <span className="font-semibold">{step.perc}%</span>
+                                       </div>
+                                       <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                           <div className="bg-teleinfo-blue h-2.5 rounded-full" style={{ width: `${step.perc}%` }}></div>
+                                       </div>
+                                   </li>
+                               ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-lg mb-2">Horas Vendidas vs. Utilizadas</h3>
+                            <div className="h-56">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={hoursComparisonData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                        <YAxis tick={{ fontSize: 10 }} />
+                                        <Tooltip contentStyle={{ fontSize: '12px' }} />
+                                        <Legend wrapperStyle={{fontSize: "12px"}}/>
+                                        <Bar dataKey="Vendidas" fill="#10b981" />
+                                        <Bar dataKey="Utilizadas">
+                                            {hoursComparisonData.map((entry, index) => {
+                                                const sold = entry['Vendidas'];
+                                                const used = entry['Utilizadas'];
+                                                let color = '#f97316'; // orange - normal
+                                                if (sold > 0) {
+                                                    if (used > sold) {
+                                                        color = '#ef4444'; // red - exceeded
+                                                    } else if (used / sold >= 0.8) {
+                                                        color = '#eab308'; // yellow - risk
+                                                    }
+                                                }
+                                                return <Cell key={`cell-${index}`} fill={color} />;
+                                            })}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                </Slide>
+            );
+        }),
         // Next Steps Slide
         <Slide key="next-steps">
             <h2 className="text-3xl font-bold text-teleinfo-blue mb-6">Próximos Passos</h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+             <div className={`grid grid-cols-1 ${!isTvMode ? 'md:grid-cols-2' : ''} gap-6 flex-grow items-center`}>
+                <div className={isTvMode ? 'max-w-3xl mx-auto w-full' : ''}>
                     {nextSteps.length > 0 ? (
                         <ul className="space-y-4">
                             {nextSteps.map(step => (
@@ -288,6 +387,11 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
                                             <p className="font-bold">{step.project}</p>
                                             <p className="text-gray-600">{step.description}</p>
                                         </div>
+                                        {!isTvMode && (
+                                            <button onClick={() => removeNextStep(step.id)} className="text-red-500 hover:text-red-400 p-1 rounded-full bg-red-500/10 ml-4">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
                                     </div>
                                 </li>
                             ))}
@@ -296,17 +400,19 @@ const PresentationView: React.FC<PresentationViewProps> = ({ allProjects }) => {
                         <p className="text-gray-500">Nenhum próximo passo adicionado.</p>
                     )}
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg self-start">
-                     <h3 className="font-semibold mb-2">Adicionar Próximo Passo</h3>
-                    <input type="text" value={newNextStepProject} onChange={e => setNewNextStepProject(e.target.value)} placeholder="Nome do Projeto" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
-                    <textarea value={newNextStepDesc} onChange={e => setNewNextStepDesc(e.target.value)} placeholder="Descrição da ação/entrega" rows={3} className="w-full border-gray-300 rounded-md p-2 mb-2"/>
-                    <button onClick={addNextStep} className="bg-teleinfo-blue text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2 transition-colors w-full justify-center">
-                        <Plus size={16}/> Adicionar
-                    </button>
-                </div>
+                {!isTvMode && (
+                    <div className="bg-gray-100 p-4 rounded-lg self-start">
+                         <h3 className="font-semibold mb-2">Adicionar Próximo Passo</h3>
+                        <input type="text" value={newNextStepProject} onChange={e => setNewNextStepProject(e.target.value)} placeholder="Nome do Projeto" className="w-full border-gray-300 rounded-md p-2 mb-2"/>
+                        <textarea value={newNextStepDesc} onChange={e => setNewNextStepDesc(e.target.value)} placeholder="Descrição da ação/entrega" rows={3} className="w-full border-gray-300 rounded-md p-2 mb-2"/>
+                        <button onClick={addNextStep} className="bg-teleinfo-blue text-white font-bold py-2 px-3 rounded-lg flex items-center gap-2 transition-colors w-full justify-center">
+                            <Plus size={16}/> Adicionar
+                        </button>
+                    </div>
+                )}
             </div>
         </Slide>
-    ], [portfolioSummary, keyFacts, nextSteps, detailedProjects, newFactText, newFactLogo, newNextStepProject, newNextStepDesc]);
+    ], [portfolioSummary, keyFacts, nextSteps, detailedProjects, newFactText, newFactLogo, newNextStepProject, newNextStepDesc, isTvMode]);
 
     const goToNextSlide = useCallback(() => {
         setCurrentSlideIndex(prev => Math.min(prev + 1, slides.length - 1));
