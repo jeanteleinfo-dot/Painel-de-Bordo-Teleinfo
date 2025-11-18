@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { DetailedProject, DetailedProjectStep } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, Save, FilePlus, Trash2 } from 'lucide-react';
+import type { DetailedProject, DetailedProjectStep, BuHours } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { Plus, Save, FilePlus, Trash2, BrainCircuit, X } from 'lucide-react';
+import { generateDetailedProjectRiskAnalysis } from '../services/geminiService';
 
-// FIX: Added statusColors constant to resolve "Cannot find name 'statusColors'" error.
 const statusColors: { [key: string]: { pill: string; chart: string } } = {
     'FINALIZADO': { pill: 'bg-green-500/10 text-green-400', chart: '#22c55e' },
     'EM ANDAMENTO': { pill: 'bg-blue-500/10 text-blue-400', chart: '#3b82f6' },
@@ -12,7 +12,6 @@ const statusColors: { [key: string]: { pill: string; chart: string } } = {
     'DEFAULT': { pill: 'bg-gray-500/10 text-gray-400', chart: '#6b7280' },
 };
 
-// Custom hook for localStorage
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
     const [storedValue, setStoredValue] = useState<T>(() => {
         try {
@@ -37,20 +36,61 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
     return [storedValue, setValue];
 };
 
+const initialBuHours: BuHours = { infra: 0, sse: 0, ti: 0, aut: 0 };
+const initialProjectState: Omit<DetailedProject, 'id'> = {
+    name: '',
+    start: '',
+    end: '',
+    steps: [
+        { name: 'Planejamento', perc: 0 },
+        { name: 'Execução', perc: 0 },
+        { name: 'Entrega', perc: 0 },
+    ],
+    soldHours: { ...initialBuHours },
+    usedHours: { ...initialBuHours },
+};
+
+const RiskAnalysisModal: React.FC<{ project: DetailedProject; onClose: () => void }> = ({ project, onClose }) => {
+    const [analysis, setAnalysis] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAnalysis = async () => {
+            setIsLoading(true);
+            const result = await generateDetailedProjectRiskAnalysis(project);
+            setAnalysis(result);
+            setIsLoading(false);
+        };
+        fetchAnalysis();
+    }, [project]);
+    
+    return (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-dark-card border border-dark-border rounded-lg p-6 w-full max-w-lg relative" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-3 right-3 text-dark-text-secondary hover:text-white">
+                    <X size={20} />
+                </button>
+                <h3 className="text-lg font-semibold text-white mb-2">Análise de Risco IA (Detalhada)</h3>
+                <p className="text-sm text-dark-text-secondary mb-4">Projeto: {project.name}</p>
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                        <BrainCircuit size={24} className="animate-pulse text-teleinfo-blue" />
+                        <span className="ml-2">Analisando...</span>
+                    </div>
+                ) : (
+                    <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }} />
+                )}
+            </div>
+        </div>
+    );
+};
+
 const MonitoringView: React.FC = () => {
     const [projects, setProjects] = useLocalStorage<DetailedProject[]>('teleinfo_detailed_projects', []);
     const [selectedProjectId, setSelectedProjectId] = useState<string | 'new'>('new');
+    const [projectForRiskAnalysis, setProjectForRiskAnalysis] = useState<DetailedProject | null>(null);
     
-    const [currentProject, setCurrentProject] = useState<Omit<DetailedProject, 'id'>>({
-        name: '',
-        start: '',
-        end: '',
-        steps: [
-            { name: 'Planejamento', perc: 0 },
-            { name: 'Execução', perc: 0 },
-            { name: 'Entrega', perc: 0 },
-        ],
-    });
+    const [currentProject, setCurrentProject] = useState<Omit<DetailedProject, 'id'>>(initialProjectState);
 
     useEffect(() => {
         if (selectedProjectId === 'new') {
@@ -63,17 +103,17 @@ const MonitoringView: React.FC = () => {
                     start: project.start,
                     end: project.end,
                     steps: project.steps,
+                    soldHours: project.soldHours || { ...initialBuHours },
+                    usedHours: project.usedHours || { ...initialBuHours },
                 });
             }
         }
     }, [selectedProjectId, projects]);
 
-    const handleInputChange = (field: keyof Omit<DetailedProject, 'id' | 'steps'>, value: string) => {
+    const handleInputChange = (field: keyof Omit<DetailedProject, 'id' | 'steps' | 'soldHours' | 'usedHours'>, value: string) => {
         setCurrentProject(prev => ({ ...prev, [field]: value }));
     };
 
-    // FIX: Changed value type from `string | number` to `string` to fix type error.
-    // Input onChange event values are always strings.
     const handleStepChange = (index: number, field: keyof DetailedProjectStep, value: string) => {
         const newSteps = [...currentProject.steps];
         if (field === 'perc') {
@@ -84,20 +124,20 @@ const MonitoringView: React.FC = () => {
         }
         setCurrentProject(prev => ({ ...prev, steps: newSteps }));
     };
-
-    const addStep = () => {
+    
+    const handleHoursChange = (type: 'soldHours' | 'usedHours', bu: keyof BuHours, value: string) => {
+        const numericValue = Number(value) >= 0 ? Number(value) : 0;
         setCurrentProject(prev => ({
             ...prev,
-            steps: [...prev.steps, { name: 'Nova Etapa', perc: 0 }],
+            [type]: {
+                ...prev[type],
+                [bu]: numericValue,
+            },
         }));
     };
 
-    const removeStep = (index: number) => {
-        setCurrentProject(prev => ({
-            ...prev,
-            steps: prev.steps.filter((_, i) => i !== index),
-        }));
-    };
+    const addStep = () => setCurrentProject(prev => ({ ...prev, steps: [...prev.steps, { name: 'Nova Etapa', perc: 0 }] }));
+    const removeStep = (index: number) => setCurrentProject(prev => ({ ...prev, steps: prev.steps.filter((_, i) => i !== index) }));
 
     const handleSave = () => {
         if (!currentProject.name.trim()) {
@@ -116,16 +156,13 @@ const MonitoringView: React.FC = () => {
     
     const handleNewProject = () => {
         setSelectedProjectId('new');
-        setCurrentProject({
-            name: '',
-            start: '',
-            end: '',
-            steps: [
-                { name: 'Planejamento', perc: 0 },
-                { name: 'Execução', perc: 0 },
-                { name: 'Entrega', perc: 0 },
-            ],
-        });
+        setCurrentProject(initialProjectState);
+    };
+    
+    const handleRiskAnalysis = () => {
+        if (selectedProjectId !== 'new') {
+            setProjectForRiskAnalysis({ ...currentProject, id: selectedProjectId });
+        }
     };
 
     const overallProgress = useMemo(() => {
@@ -135,11 +172,20 @@ const MonitoringView: React.FC = () => {
         return total / validSteps.length;
     }, [currentProject.steps]);
 
+    const hoursComparisonData = useMemo(() => {
+        const buLabels: { [key in keyof BuHours]: string } = { infra: 'Infra', sse: 'Segurança', ti: 'TI', aut: 'Automação' };
+        return (Object.keys(currentProject.soldHours) as Array<keyof BuHours>).map(bu => ({
+            name: buLabels[bu],
+            'Horas Vendidas': currentProject.soldHours[bu],
+            'Horas Utilizadas': currentProject.usedHours[bu],
+        }));
+    }, [currentProject.soldHours, currentProject.usedHours]);
+
     return (
         <div className="space-y-8">
+            {projectForRiskAnalysis && <RiskAnalysisModal project={projectForRiskAnalysis} onClose={() => setProjectForRiskAnalysis(null)} />}
             <h1 className="text-3xl font-bold text-white">Monitoramento Detalhado</h1>
 
-            {/* Controls */}
             <div className="bg-dark-card border border-dark-border rounded-lg p-5 flex flex-wrap items-end gap-4">
                 <div className="flex-grow">
                     <label htmlFor="projectSelect" className="text-sm font-medium text-dark-text-secondary block mb-1">Projeto Salvo</label>
@@ -166,19 +212,18 @@ const MonitoringView: React.FC = () => {
                  <button onClick={handleNewProject} className="bg-dark-border hover:bg-dark-border/80 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
                     <FilePlus size={16} /> Novo
                 </button>
+                 <button onClick={handleRiskAnalysis} disabled={selectedProjectId === 'new'} className="bg-teleinfo-orange hover:bg-teleinfo-orange/90 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <BrainCircuit size={16} /> Analisar Risco
+                </button>
             </div>
 
-            {/* Main grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left side: Status and Steps */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="lg:col-span-1 space-y-8">
                     <div className="bg-dark-card border border-teleinfo-orange rounded-lg p-6 text-center">
                         <h3 className="text-lg font-semibold text-white mb-2">Status Geral</h3>
                         <p className="text-5xl font-bold text-teleinfo-orange mb-2">{overallProgress.toFixed(1)}%</p>
                         <p className="text-sm text-dark-text-secondary">
-                            {currentProject.start && currentProject.end
-                                ? `De ${currentProject.start} até ${currentProject.end}`
-                                : "Por favor, defina as datas de início e término"}
+                            {currentProject.start && currentProject.end ? `De ${currentProject.start} até ${currentProject.end}` : "Defina as datas de início e término"}
                         </p>
                     </div>
 
@@ -199,32 +244,59 @@ const MonitoringView: React.FC = () => {
                             <Plus size={16} /> Adicionar Etapa
                         </button>
                     </div>
+                    
+                    <div className="bg-dark-card border border-dark-border rounded-lg p-5">
+                        <h3 className="text-lg font-semibold text-white mb-4">Controle de Horas por BU</h3>
+                        {(['soldHours', 'usedHours'] as const).map(type => (
+                            <div key={type} className="mb-4">
+                                <h4 className="font-semibold text-dark-text-secondary mb-2">{type === 'soldHours' ? 'Horas Vendidas' : 'Horas Utilizadas'}</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(Object.keys(initialBuHours) as Array<keyof BuHours>).map(bu => (
+                                         <div key={`${type}-${bu}`}>
+                                            <label className="text-xs uppercase text-dark-text-secondary/80">{bu}</label>
+                                            <input type="number" min="0" value={currentProject[type][bu]} onChange={e => handleHoursChange(type, bu, e.target.value)} className="w-full bg-dark-bg border border-dark-border rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-teleinfo-blue"/>
+                                         </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Right side: Chart */}
-                <div className="lg:col-span-2 bg-dark-card border border-dark-border rounded-lg p-5">
-                    <h3 className="text-lg font-semibold text-white mb-4">Status por Etapa</h3>
-                    <div className="h-96">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={currentProject.steps} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke={statusColors.DEFAULT.chart} strokeOpacity={0.2} />
-                                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#8b949e', fontSize: 12 }} unit="%" />
-                                <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#c9d1d9', fontSize: 12 }} />
-                                <Tooltip
-                                    cursor={{ fill: 'rgba(139, 148, 158, 0.1)' }}
-                                    contentStyle={{
-                                        backgroundColor: '#161b22',
-                                        borderColor: '#30363d',
-                                        borderRadius: '0.5rem',
-                                    }}
-                                />
-                                <Bar dataKey="perc" name="Progresso" barSize={20}>
-                                    {currentProject.steps.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.perc === 100 ? '#22c55e' : '#3b82f6'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="lg:col-span-1 space-y-8">
+                    <div className="bg-dark-card border border-dark-border rounded-lg p-5">
+                        <h3 className="text-lg font-semibold text-white mb-4">Status por Etapa</h3>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={currentProject.steps} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={statusColors.DEFAULT.chart} strokeOpacity={0.2} />
+                                    <XAxis type="number" domain={[0, 100]} tick={{ fill: '#8b949e', fontSize: 12 }} unit="%" />
+                                    <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#c9d1d9', fontSize: 12 }} />
+                                    <Tooltip cursor={{ fill: 'rgba(139, 148, 158, 0.1)' }} contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '0.5rem' }}/>
+                                    <Bar dataKey="perc" name="Progresso" barSize={20}>
+                                        {currentProject.steps.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.perc === 100 ? '#22c55e' : '#3b82f6'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                     <div className="bg-dark-card border border-dark-border rounded-lg p-5">
+                        <h3 className="text-lg font-semibold text-white mb-4">Comparativo de Horas (Vendida vs. Utilizada)</h3>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={hoursComparisonData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={statusColors.DEFAULT.chart} strokeOpacity={0.2} />
+                                    <XAxis dataKey="name" tick={{ fill: '#c9d1d9', fontSize: 12 }} />
+                                    <YAxis tick={{ fill: '#8b949e', fontSize: 12 }} />
+                                    <Tooltip cursor={{ fill: 'rgba(139, 148, 158, 0.1)' }} contentStyle={{ backgroundColor: '#161b22', borderColor: '#30363d', borderRadius: '0.5rem' }}/>
+                                    <Legend wrapperStyle={{fontSize: "12px"}}/>
+                                    <Bar dataKey="Horas Vendidas" fill="#10b981" />
+                                    <Bar dataKey="Horas Utilizadas" fill="#f97316" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
             </div>

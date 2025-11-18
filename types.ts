@@ -1,4 +1,3 @@
-
 export interface Project {
   [key: string]: string | number | null;
   CLIENTE: string;
@@ -15,12 +14,21 @@ export interface DetailedProjectStep {
   perc: number;
 }
 
+export interface BuHours {
+  infra: number;
+  sse: number;
+  ti: number;
+  aut: number;
+}
+
 export interface DetailedProject {
   id: string;
   name: string;
   start: string;
   end: string;
   steps: DetailedProjectStep[];
+  soldHours: BuHours;
+  usedHours: BuHours;
 }
 
 export interface KeyFact {

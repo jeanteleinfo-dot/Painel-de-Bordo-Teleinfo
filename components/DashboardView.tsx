@@ -396,8 +396,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ projects, onDataLoaded, f
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusClass(p.STATUS)}`}>{p.STATUS}</span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <button onClick={() => setSelectedProjectForRisk(p)} title="Gerar Análise de Risco com IA" className="text-teleinfo-blue hover:text-teleinfo-blue/80 transition-colors">
-                                           <AlertTriangle size={16}/>
+                                        <button
+                                            onClick={() => setSelectedProjectForRisk(p)}
+                                            title="Gerar Análise de Risco com IA"
+                                            className="bg-teleinfo-blue/10 text-teleinfo-blue hover:bg-teleinfo-blue/20 text-xs font-semibold py-1.5 px-3 rounded-full transition-colors flex items-center gap-1.5 justify-center"
+                                        >
+                                            <BrainCircuit size={14} />
+                                            <span>Analisar Risco</span>
                                         </button>
                                     </td>
                                 </tr>
